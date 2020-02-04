@@ -64,7 +64,7 @@ this returns a list with three items: `res$pi ` gives you an estimate of the ove
 
 - post_prob is the posterior probability that delta is larger than 1
 
-- meth_prob is an estimate for the percentage of methylated miRNA similar to what was proposed in the QNB paper (Liu et al. DOI: 10.1186/s12859-017-1808-4). Take this with a grain of salt.
+- meth_prob is an estimate for the percentage of methylated miRNA similar to what was proposed in the QNB paper (Liu et al. DOI: 10.1186/s12859-017-1808-4). Take this with a grain of salt. It is calculated as baseMean * delta / (baseMean + baseMean * delta). 
 
 `res$significant_results` just returns the miRNAs that together (i.e. multiplied) have a posterior probability of delta > 1 that is larger than 0.95. 
 
