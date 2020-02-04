@@ -221,9 +221,25 @@ gmpr_normalization <- function(counts) {
 #===============================================================================
 
 generatestanobject <- function(counts, s_to_one = F, g_to_one = T){
+
   n <- ncol(counts)
   N <- nrow(counts)
   counts <- as.matrix(counts)
+  ## Error handling. 
+  ## warnings if some miRNAs are zero across all samples. 
+  ## will be repeated below. Needs to be changed for efficiency reasons. 
+  meanmatrix <- matrix(NA, nrow = N, ncol = 3)
+  colnames(meanmatrix) <- c("input", "ip", "delta")
+  meanmatrix[,1] <- rowMeans(counts[, 1:(n/2)])
+  meanmatrix[,2] <- rowMeans(counts[, (1 + (n/2)):n])
+  meanmatrix[,3] <- meanmatrix[,2] / meanmatrix[,1]
+
+  if ( sum(meanmatrix[,1] ==  0) > 0 | sum(meanmatrix[,2] ==  0) < 0 ){
+    warning("Some miRNAs had zero counts across all input samples and/or across all IPed samples. These were removed.")
+      counts <- counts[(meanmatrix[,1] != 0 & meanmatrix[,2] != 0),]
+      N = nrow(counts)
+
+  } 
 
 
   #vector indicating whether we have IP or not
