@@ -1,44 +1,32 @@
-#' @title Normalize Genes According to GMPR
+#' @title Filter Counts
 #'
 #' @description
-#' 1st step: calculate pairwise r_jk for two samples j and k
-#' only look at those genes in the samples for which
-#' count_ij * count_ik != zero
-#' for those were it is not zero, look at the ratio
-#' count_ij / count_ik. Then take the median of those.
+#' MISSING
 #' 
 #' @details
 #' 
 #' @param counts A data.frame with counts
 #' 
-#' @return MISSING
+#' @return a data.frame with filtered counts
 #' @author Nikos Bosse \email{nikosbosse@gmail.com}
 #' @examples
 #'  
 #' counts <- mirmeth::example_data_wide
-#' s_gmpr(counts)
+#' filter_counts(counts)
 #'
 #' @export
 
-
-gmpr_normalization <- function(counts) {
-  counts <- counts[, !(colnames(counts) == "id")]
-  n = ncol(counts)
-  s_gmpr <- vector(mode = 'numeric', length = n)
-  for (j in 1:n) {
-    r <- vector(mode = 'numeric', length = n)
-    for (k in 1:n) {
-      v <- counts[,j]
-      w <- counts[,k]
-      nonzero <- v != 0 & w
-      r[k] <- median(v[nonzero] / w[nonzero])
-    }
-    s_gmpr[j] <- exp((1/n) * sum(log(r)))
-  }
-  return(s_gmpr)
+filter_counts <- function(counts) {
+  out <- counts %>%
+    dplyr::mutate(mean_input = rowMeans(counts %>%
+                                          dplyr::select(dplyr::all_of(inputs))), 
+                  mean_iped = rowMeans(counts %>%
+                                         dplyr::select(dplyr::all_of(ipeds)))) %>%
+    dplyr::filter(mean_input != 0 & mean_iped != 0) %>%
+    dplyr::select(-mean_input, -mean_iped) 
+  
+  return(out)
 }
-
-#===============================================================================
 
 
 #' @title Generate Stanfit Objcet from Counts
@@ -54,84 +42,41 @@ gmpr_normalization <- function(counts) {
 #' @examples
 #' # 
 #' # missing
+#' 
+#' counts <- mirmeth::example_data_wide
 #'
 #'
 #' @export
 
+generatestanobject <- function(filtered_counts, s_to_one = F, g_to_one = T){
 
-generatestanobject <- function(counts, s_to_one = F, g_to_one = T){
-
-  n <- ncol(counts)
-  N <- nrow(counts)
-  counts <- as.matrix(counts)
-  ## Error handling. 
-  ## warnings if some miRNAs are zero across all samples. 
-  ## will be repeated below. Needs to be changed for efficiency reasons. 
-  meanmatrix <- matrix(NA, nrow = N, ncol = 3)
-  colnames(meanmatrix) <- c("input", "ip", "delta")
-  meanmatrix[,1] <- rowMeans(counts[, 1:(n/2)])
-  meanmatrix[,2] <- rowMeans(counts[, (1 + (n/2)):n])
-  meanmatrix[,3] <- meanmatrix[,2] / meanmatrix[,1]
-
-  if ( sum(meanmatrix[,1] ==  0) > 0 | sum(meanmatrix[,2] ==  0) < 0 ){
-    warning("Some miRNAs had zero counts across all input samples and/or across all IPed samples. These were removed.")
-      counts <- counts[(meanmatrix[,1] != 0 & meanmatrix[,2] != 0),]
-      N = nrow(counts)
-
-  } 
-
-
+  ## maybe sort columns somewhere? 
+  
+  counts <- filtered_counts %>%
+    dplyr::select(-id) %>%
+    as.matrix()
+    
+  n = ncol(counts)
+  N = nrow(counts)
+  
   #vector indicating whether we have IP or not
-  ip <- rep(c(0,1), each = n/2)
-
+  ip <- ifelse(grepl("iped", colnames(counts)), 1, 0)
+  
   #compute size factor for the samples
   if (s_to_one == T){
     s <- rep(1, times = n)
   } else {
-    s  <- vector(mode = "numeric", length = n)
-    for (i in 1: n){
-      s[i] <- sum(counts[,i])/sum(counts)
-    }
+    s <- colSums(counts) / sum(counts)
   }
 
   #compute scaling factor for the bins w
   if (g_to_one == T){
     g <- rep(1, times = N)
   } else {
-    g <- vector(mode = "numeric", length = N)
     g <- rowMeans(counts[,ip == 0])
   }
 
-  ##############################################
-  # alternative: DESeq2 normalization approach
-  rowprodsfun <- function(x) {
-    prod(x[x !=0]) ^ (1/n) # over sum(ip)?
-  }
-  Ki_R <- apply(counts[, ip == 0], MARGIN = 1, FUN = rowprodsfun)
-  # Ki_R <- matrixStats::rowProds(counts[, ip == 0])
-  s_deseq <- counts[] / Ki_R # counts[, ip == 0]?
-  s_deseq <- matrixStats::colMedians(as.matrix(s_deseq)) 
-  ##############################################
-
-  ##############################################
-  # alternative: GMPR normalization approach
-  # 1st step: calculate pairwise r_jk for two samples j and k
-  # only look at those genes in the samples for which
-  # count_ij * count_ik != zero
-  # for those were it is not zero, look at the ratio 
-  # count_ij / count_ik. Then take the median of those. 
-
-  # s_gmpr <- vector(mode = 'numeric', length = n)
-  # for (j in 1:n) {
-  #   r <- vector(mode = 'numeric', length = n)
-  #   for (k in 1:n) {
-  #     v <- counts[,j]
-  #     w <- counts[,k]
-  #     nonzero <- v != 0 & w
-  #     r[k] <- median(v[nonzero] / w[nonzero])
-  #   }
-  #   s_gmpr[j] <- exp((1/n) * sum(log(r)))
-  # }
+  -
 
   s_gmpr <- gmpr_normalization(counts)
 
